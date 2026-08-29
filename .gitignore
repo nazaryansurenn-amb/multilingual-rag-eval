@@ -1,0 +1,38 @@
+# --- Document content. Never commit: these hold real working documents. ---
+corpus*.jsonl
+evalset*.jsonl
+results_*.json
+arm_chunks.jsonl
+pdf_text.txt
+pdf_scan.txt
+*.docx
+*.xlsx
+*.pdf
+*.doc
+*.xls
+
+# --- Vector store ---
+chroma/
+chroma_db/
+
+# --- Secrets and local config ---
+.env
+
+# --- Private working notes (contain the archive path) ---
+notes.md
+NOTES.md
+
+# --- Throwaway scripts kept on disk but out of history ---
+scratch/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# --- Models / caches ---
+models/
+.cache/

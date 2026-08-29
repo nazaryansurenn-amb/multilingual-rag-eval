@@ -1,0 +1,27 @@
+# Retrieval / storage
+chromadb
+sentence-transformers
+
+# torch arrives as a sentence-transformers dependency. The wheel on the default
+# PyPI index is CPU-only. Blackwell GPUs (sm_120, e.g. RTX 50-series) need cu129
+# or newer, installed from PyTorch's own index:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu129
+# With an older CUDA build torch.cuda.is_available() still returns True and then
+# fails at kernel launch with "no kernel image is available for execution on the
+# device". The reranker runs on CPU here, so this only matters if you move it.
+torch
+
+# HTTP to the LM Studio OpenAI-compatible API
+requests
+
+# Configuration
+python-dotenv
+
+# Document extraction
+pymupdf      # current PDF extractor (extract2.py)
+pypdf        # older PDF extractor (extract.py) and the text-layer/scan split
+python-docx
+openpyxl
+
+# MCP server
+fastmcp
