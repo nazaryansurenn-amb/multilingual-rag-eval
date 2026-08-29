@@ -5,6 +5,10 @@ results_*.json
 arm_chunks.jsonl
 pdf_text.txt
 pdf_scan.txt
+
+# BM25 keyword index: derived from document content, ~21 MB
+bm25_*.pkl
+*.pkl
 *.docx
 *.xlsx
 *.pdf

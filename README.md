@@ -128,6 +128,61 @@ leaving `content` empty. Enforcing a JSON schema through
 
 ---
 
+### 4. Hybrid retrieval helps only where the query language matches
+
+Dense embeddings match meaning; BM25 matches literal tokens. They fail in
+different places, so fusing them should recover documents that neither finds
+alone — precisely the proper-noun failure described in finding #2.
+
+The two rankings are combined with Reciprocal Rank Fusion: each retriever
+contributes `1/(60 + rank)` for every candidate and the sums are sorted. RRF
+fuses *rankings*, not scores. That matters here because cosine similarity and
+BM25 scores sit on unrelated scales — adding them directly requires a weight,
+and a weight is a parameter that would be tuned on 50 questions and overfitted
+to them. RRF has no such knob to get wrong.
+
+Applied unconditionally to every query:
+
+| eval set | recall@25 before | after | delta |
+|---|---|---|---|
+| Armenian (n=50) | 0.780 | 0.920 | **+0.140** |
+| EN/RU (n=51) | 0.667 | 0.627 | **−0.039** |
+
+A large gain on one set and a regression on the other. At the retrieval stage
+the EN/RU damage was worse than that row suggests: recall@5 fell 0.510 → 0.412
+and MRR 0.411 → 0.311.
+
+**The cause is vocabulary, not tuning.** The corpus is predominantly Armenian.
+An English or Russian query shares no literal tokens with an Armenian document,
+so BM25 has nothing meaningful to match and returns whatever happens to share
+surface forms. RRF then treats that noise as a first-class ranking and lets it
+push good dense candidates out of the top 25.
+
+**The fix is to consult BM25 only when it can help** — when the query language
+matches the corpus language, and otherwise stay dense-only:
+
+| eval set | recall@25 before | adaptive | delta |
+|---|---|---|---|
+| Armenian (n=50) | 0.780 | 0.920 | **+0.140** |
+| EN/RU (n=51) | 0.667 | 0.667 | **0.000** |
+
+BM25 fired on 50 of 50 Armenian queries and on 4 of 51 EN/RU queries — the four
+Armenian questions that happened to land in that set. Full gain where the
+languages match, no harm where they do not.
+
+**Per-stage metrics are what exposed this.** After reranking, EN/RU recall@5 was
+0.529 both with and without BM25: the cross-encoder re-sorted the polluted
+candidate list and absorbed the damage. A single headline number would have
+reported no change and hidden a 0.098 drop in retrieval recall@5 entirely. The
+reranker cannot recover a document that never reached it, so degrading stage 1
+while stage 2 conceals it is the failure mode most worth instrumenting against.
+
+*The reranked figures in this section predate a fix to how BM25-only candidates
+were paired with their chunk text; the retrieval-stage numbers are unaffected by
+it. They are due a re-run.*
+
+---
+
 ## Architecture
 
 ```
@@ -204,6 +259,8 @@ reported as inconclusive rather than as a small negative result.
 src/
   extract.py       docx/xlsx/pdf → corpus.jsonl   --parser {pymupdf,pypdf}
   index.py         chunk + embed + write to Chroma  --collection --with-header
+  build_bm25.py    BM25 keyword index over a collection  --collection --out
+  retrieval.py     shared tokenisation, language rule, dense + BM25 fusion
   search.py        vector search only
   search2.py       two-stage: vectors + reranker
   ask.py           full RAG with grounded generation
@@ -263,18 +320,23 @@ Stated plainly, because the numbers above only mean something with them.
   no Armenian baseline column.
 - **A third of retrievals still fail.** Much of that is tabular content
   that embeds poorly; some is near-duplicate documents scored as misses.
+- **The BM25 language rule is a single hardcoded language.** Adaptive
+  retrieval compares the query against `CORPUS_LANG = 'Armenian'`, not
+  against each document's own language. That is correct for this corpus
+  and wrong as a general rule: it breaks once the 351 legacy `.doc`/`.xls`
+  files, many of them Russian, are indexed.
 - **Out of scope so far:** 254 scanned PDFs (need OCR), 351 legacy
-  `.doc`/`.xls` files, table-aware chunking, hybrid retrieval.
+  `.doc`/`.xls` files, table-aware chunking.
 
 ---
 
 ## Next
 
-1. **Hybrid BM25 + dense retrieval.** Proper nouns are where dense
-   vectors fail, and this archive is full of them. Largest available
-   gain.
-2. **Table-aware chunking** — carry column headers into each row chunk.
+1. **Table-aware chunking** — carry column headers into each row chunk.
    Finding #2 says this is where a third of the failures live.
+2. **Per-document language matching** for the BM25 rule, replacing the
+   single hardcoded corpus language. Needed before the Russian legacy
+   files are indexed.
 3. Regenerate the EN/RU eval set under the same chunk filter as the
    Armenian one, isolating language from content structure.
 4. OCR for the 254 scans.

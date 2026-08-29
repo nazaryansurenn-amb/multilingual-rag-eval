@@ -1,6 +1,7 @@
 # Retrieval / storage
 chromadb
 sentence-transformers
+rank_bm25   # BM25 keyword retrieval, fused with dense via RRF
 
 # torch arrives as a sentence-transformers dependency. The wheel on the default
 # PyPI index is CPU-only. Blackwell GPUs (sm_120, e.g. RTX 50-series) need cu129
