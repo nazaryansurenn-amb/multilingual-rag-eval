@@ -177,24 +177,30 @@ reported no change and hidden a 0.098 drop in retrieval recall@5 entirely. The
 reranker cannot recover a document that never reached it, so degrading stage 1
 while stage 2 conceals it is the failure mode most worth instrumenting against.
 
-*The reranked figures in this section predate a fix to how BM25-only candidates
-were paired with their chunk text; the retrieval-stage numbers are unaffected by
-it. They are due a re-run.*
-
 ---
 
 ## Architecture
 
 ```
-documents ──► extract ──► chunk ──► embed ──────► Chroma
- (docx/xlsx/pdf)                    (bge-m3)      (14,252 chunks)
-                                                       │
-query ──► embed ──► top-25 ──► rerank ──► top-5 ──► LLM / MCP tool
-                              (bge-reranker-v2-m3)
+documents ──► extract ──► chunk ──┬─► embed ────► Chroma
+ (docx/xlsx/pdf)                  │  (bge-m3)     (14,252 chunks)
+                                  └─► tokenise ─► BM25 index
+
+query ──┬─► embed ─────► top-25 dense ──┐
+        │                               ├─► RRF ──► top-25
+        └─► tokenise ──► top-25 BM25 ───┘             │
+            (only when the query language             │
+             matches the corpus language)             │
+              ┌───────────────────────────────────────┘
+              ▼
+            rerank ──► top-5 ──► LLM / MCP tool
+          (bge-reranker-v2-m3)
 ```
 
 - **Embedder:** BAAI/bge-m3 (Q8_0) served by LM Studio
 - **Vector store:** ChromaDB, cosine similarity
+- **Keyword retriever:** BM25 (rank_bm25) over the same chunks, fused
+  with the dense ranking by Reciprocal Rank Fusion
 - **Reranker:** BAAI/bge-reranker-v2-m3 via sentence-transformers CrossEncoder
 - **Generation:** local models via LM Studio, or Claude through an MCP server
 - **Chunking:** 1,500 characters, 200-character overlap
