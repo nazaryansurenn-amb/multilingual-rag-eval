@@ -130,6 +130,9 @@ leaving `content` empty. Enforcing a JSON schema through
 
 ### 4. Hybrid retrieval helps only where the query language matches
 
+Up to this point the system was dense-only; BM25 was added specifically in
+response to finding #2.
+
 Dense embeddings match meaning; BM25 matches literal tokens. They fail in
 different places, so fusing them should recover documents that neither finds
 alone — precisely the proper-noun failure described in finding #2.
@@ -169,6 +172,15 @@ matches the corpus language, and otherwise stay dense-only:
 BM25 fired on 50 of 50 Armenian queries and on 4 of 51 EN/RU queries — the four
 Armenian questions that happened to land in that set. Full gain where the
 languages match, no harm where they do not.
+
+The gain survives reranking. On the Armenian set:
+
+| | recall@5 | MRR |
+|---|---|---|
+| dense only | 0.760 | 0.583 |
+| hybrid, adaptive | **0.880** | **0.706** |
+
+Six more questions of fifty answered from the top five.
 
 **Per-stage metrics are what exposed this.** After reranking, EN/RU recall@5 was
 0.529 both with and without BM25: the cross-encoder re-sorted the polluted
