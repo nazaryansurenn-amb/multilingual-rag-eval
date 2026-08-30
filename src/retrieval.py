@@ -9,10 +9,17 @@ per candidate. It combines rankings rather than scores, which matters because
 cosine similarity and BM25 scores are on unrelated scales and cannot be added
 without a weight — and a weight is a parameter to overfit on 50 questions.
 """
+import os
 import pickle
 import re
+import sys
 import unicodedata
 from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
 # Measured constants. Changing any of them invalidates the recorded results.
 POOL = 25       # candidates drawn from each retriever before fusion
@@ -27,6 +34,10 @@ CORPUS_LANG = 'Armenian'
 ARM_THRESHOLD = 0.5
 
 BM25_MODES = ('adaptive', 'always', 'never')
+
+LM_URL = os.getenv('LM_STUDIO_URL', 'http://127.0.0.1:1234/v1').rstrip('/')
+EMBED_MODEL = os.getenv('EMBED_MODEL', 'text-embedding-bge-m3')
+RERANKER = 'BAAI/bge-reranker-v2-m3'
 
 
 def tokenize(text):
@@ -115,3 +126,71 @@ def retrieve(col, query, embedding, bm25_data=None, mode='adaptive'):
     metas = [meta_by_id.get(c) or {'path': path_by_id[c], 'name': '', 'folder': ''}
              for c in cand]
     return cand, paths, texts, metas, use_bm25
+
+# --------------------------------------------------------------------------
+# Serving helpers. Every query path - search2.py, ask.py, mcp_server.py and
+# agent.py - runs the same three steps: embed the query, retrieve candidates,
+# rerank them. Kept here so the sequence exists once.
+# --------------------------------------------------------------------------
+
+_reranker = None
+
+
+def embed(text):
+    """Query vector from the configured OpenAI-compatible embeddings endpoint."""
+    r = requests.post(f'{LM_URL}/embeddings',
+                      json={'model': EMBED_MODEL, 'input': [text]}, timeout=120)
+    r.raise_for_status()
+    return r.json()['data'][0]['embedding']
+
+
+def reranker():
+    """Cross-encoder, loaded on first use.
+
+    Imported lazily so that scripts which only need tokenize() do not pay for
+    sentence-transformers, and so servers start before the model is resident.
+    """
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder(RERANKER, max_length=1024, device='cpu')
+    return _reranker
+
+
+def open_bm25(path, col, warn=True):
+    """Load a BM25 index and check it belongs to this collection.
+
+    Returns None on a missing or mismatched index, after a warning on stderr,
+    so a query path degrades to dense-only instead of failing.
+    """
+    data = load_bm25(path)
+    if data is None:
+        if warn:
+            print(f'warning: no BM25 index at {path} - dense-only retrieval',
+                  file=sys.stderr)
+        return None
+    ok, why = bm25_matches(data, col)
+    if not ok:
+        if warn:
+            print(f'warning: {why} - dense-only retrieval', file=sys.stderr)
+        return None
+    return data
+
+
+def search(col, query, bm25_data=None, mode='adaptive', top_n=5):
+    """Retrieve TOP_K candidates, rerank them, return the best top_n.
+
+    Returns (hits, used_bm25, n_candidates). Each hit is a dict with score,
+    text, path, name and folder.
+    """
+    _ids, paths, texts, metas, used_bm25 = retrieve(
+        col, query, embed(query), bm25_data, mode)
+    scores = reranker().predict([(query, t) for t in texts])
+    order = sorted(range(len(texts)), key=lambda j: -scores[j])[:top_n]
+    hits = [{'score': float(scores[j]),
+             'text': texts[j],
+             'path': paths[j],
+             'name': metas[j].get('name') or os.path.basename(paths[j]),
+             'folder': metas[j].get('folder', '')}
+            for j in order]
+    return hits, used_bm25, len(texts)

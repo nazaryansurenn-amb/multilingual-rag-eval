@@ -191,6 +191,68 @@ while stage 2 conceals it is the failure mode most worth instrumenting against.
 
 ---
 
+### 5. The fix belonged in the tool, not the prompt
+
+Everything above is a fixed pipeline: one retrieval, one answer, the same
+sequence every time. `src/agent.py` is not. The model is given
+`search_documents` as a tool and decides for itself when to search, what to
+search for, whether the results are good enough, and when to stop. It reuses
+the same hybrid retrieval, so nothing about the search changed — only who is
+driving it.
+
+**The language switch was emergent.** Asked about the Shirak canal, the model
+searched in English, got 0.48, and retried in Armenian without being told to.
+No code branches on language; it inferred the move from the tool description
+and the score that came back. That is the behaviour the fixed pipeline cannot
+produce — `ask.py` would have returned the 0.48 result and answered from it.
+
+**Then it could not stop.** Abbreviated v1 trace:
+
+```
+[step 1] 'Shirak canal'          -> 0.48
+[step 1] 'Շիրակ ջրաղաց'          -> 0.58      (jraghac = mill, wrong word)
+[step 2] 'Շիրակի ջրանցք'         -> 0.92      (jrancq = canal, correct)
+...
+[step 4] 'Շիրակի ջրանցք'         -> 0.92      (repeat)
+[step 5] 'Շիրակի ջրանցք'         -> 0.92      (repeat)
+[step 6] 'Շիրակի ջրանցք ոռոգում' -> 0.95
+Stopped after 6 steps without a final answer.
+```
+
+It had a 0.92 result at step 2 and re-ran the identical query twice. The step
+limit was the only thing that ended the run, and it cut off one step after the
+best score of the whole session.
+
+The rule "stop when the score is good" was already in the system prompt. It
+lost to the model's own judgement. What fixed it was moving the rule into the
+tool: a repeated query now returns *"you already ran this and got 0.92 — answer
+from those results or search for something different"* instead of the same hits
+again, and any result above 0.6 comes back with *"this is a good result, answer
+from it."*
+
+```
+[step 1] 'Շիրակի ջրանցք' -> 0.92
+[step 2] final answer after 1 searches
+```
+
+One search instead of six, correct Armenian on the first attempt, an answer
+citing two filenames that distinguished the Shirak canal from the neighbouring
+Ajapnya canal and said plainly that the archive holds only administrative
+references to it.
+
+**The general point:** an agent can ignore an instruction, because an
+instruction is one input competing with everything else in the context. It
+cannot ignore a tool that refuses. Behaviour you actually need guaranteed
+belongs in the environment the model acts on, not in the text you hope it
+weighs highly. Full traces are in [docs/agent-runs.md](docs/agent-runs.md).
+
+**What this is not.** One tool, no planner, no memory between sessions, no
+delegation to other agents. The loop is a while-loop over tool calls with a
+step limit. It is the smallest thing that earns the word, and the finding above
+is about tool design rather than about agent architecture.
+
+---
+
 ## Architecture
 
 ```
@@ -207,6 +269,19 @@ query ──┬─► embed ─────► top-25 dense ──┐
               ▼
             rerank ──► top-5 ──► LLM / MCP tool
           (bge-reranker-v2-m3)
+```
+
+`src/agent.py` wraps that same retrieval as a tool and lets the model drive it:
+
+```
+question ──► model ──┬─► search_documents(q) ──► retrieval ──► top-4
+                     │      ▲                                   │
+                     │      └───── tool response ◄──────────────┘
+                     │      carries the best score, and:
+                     │        ≥ 0.6    "good result, answer from it"
+                     │        repeat   refused, not re-run
+                     │
+                     └─► no tool call ──► answer with filenames
 ```
 
 - **Embedder:** BAAI/bge-m3 (Q8_0) served by LM Studio
@@ -282,6 +357,7 @@ src/
   search.py        vector search only
   search2.py       two-stage: vectors + reranker
   ask.py           full RAG with grounded generation
+  agent.py         agent loop: the model drives retrieval as a tool
   mcp_server.py    MCP server exposing search_documents
   gen_eval.py      synthetic eval question generation
   gen_arm.py       Armenian variant (ArmenianGPT + strict chunk filter)
