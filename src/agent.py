@@ -44,7 +44,7 @@ TOOLS = [{
     'function': {
         'name': 'search_documents',
         'description': (
-            'Search the Water Committee archive: 2209 documents, mostly Armenian, '
+            'Search a water-sector document archive: 2209 documents, mostly Armenian, '
             'some Russian and English. Covers irrigation, water supply, pump '
             'stations, reservoirs, contracts and correspondence from 2015-2025. '
             'Returns excerpts with source filenames and relevance scores. '
