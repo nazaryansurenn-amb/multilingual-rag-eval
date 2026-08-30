@@ -1,4 +1,9 @@
-import json, random, os, re, requests, chromadb
+import json
+import random
+import os
+import re
+import requests
+import chromadb
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -72,7 +77,7 @@ def extract(msg):
             q = json.loads(raw).get('question', '').strip()
             if len(q) > 10:
                 return q
-        except:
+        except Exception:
             pass
     blob = raw + ' ' + (msg.get('reasoning_content') or '')
     m = re.findall(r'"([^"]{15,200}[?\u055e])"', blob)
@@ -89,7 +94,7 @@ if os.path.exists(OUT):
     for line in open(OUT, encoding='utf-8'):
         try:
             done.add(json.loads(line)['chunk_id'])
-        except:
+        except Exception:
             pass
 print('already done:', len(done), flush=True)
 

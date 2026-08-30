@@ -3,14 +3,16 @@ chromadb
 sentence-transformers
 rank_bm25   # BM25 keyword retrieval, fused with dense via RRF
 
-# torch arrives as a sentence-transformers dependency. The wheel on the default
-# PyPI index is CPU-only. Blackwell GPUs (sm_120, e.g. RTX 50-series) need cu129
-# or newer, installed from PyTorch's own index:
+# torch is deliberately NOT listed here. The Dockerfile installs it first, from
+# PyTorch's CPU index; naming it here as well would let any dependency wanting a
+# newer torch resolve it from default PyPI and pull the CUDA build back into the
+# image. sentence-transformers depends on torch, so outside Docker install the
+# build that matches your hardware before running this file. Blackwell GPUs
+# (sm_120, e.g. RTX 50-series) need cu129 or newer:
 #   pip install torch --index-url https://download.pytorch.org/whl/cu129
 # With an older CUDA build torch.cuda.is_available() still returns True and then
 # fails at kernel launch with "no kernel image is available for execution on the
 # device". The reranker runs on CPU here, so this only matters if you move it.
-torch
 
 # HTTP to the LM Studio OpenAI-compatible API
 requests

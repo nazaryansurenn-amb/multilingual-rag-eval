@@ -1,0 +1,19 @@
+services:
+  rag:
+    build: .
+    image: water-rag
+    volumes:
+      - ${RAG_DATA:-.}:/data
+      - ${HF_CACHE:-hf-cache}:/root/.cache/huggingface
+    environment:
+      RAG_DIR: /data
+      LM_STUDIO_URL: http://host.docker.internal:1234/v1
+      EMBED_MODEL: text-embedding-bge-m3
+      PYTHONUNBUFFERED: 1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true
+
+volumes:
+  hf-cache:

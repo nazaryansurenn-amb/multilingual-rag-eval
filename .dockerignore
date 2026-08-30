@@ -1,0 +1,44 @@
+# data — never goes into the image
+corpus*.jsonl
+chroma/
+evalset*.jsonl
+results_*.json
+*.pkl
+arm_chunks.jsonl
+pdf_text.txt
+pdf_scan.txt
+
+# source documents - never let a stray file into the build context
+*.docx
+*.xlsx
+*.pdf
+*.doc
+*.xls
+chroma_db/
+
+# secrets and private notes
+.env
+notes.md
+.claude.json
+
+# scratch and git
+scratch/
+.git/
+.gitignore
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# large local caches
+models/
+.cache/
+
+# docs not needed at runtime
+*.md
+!README.md

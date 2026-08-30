@@ -1,4 +1,10 @@
-import json, random, os, re, statistics, requests, chromadb
+import json
+import random
+import os
+import re
+import statistics
+import requests
+import chromadb
 from pathlib import Path
 from dotenv import load_dotenv
 

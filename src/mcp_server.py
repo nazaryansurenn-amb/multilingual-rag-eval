@@ -1,4 +1,7 @@
-import os, sys, requests, chromadb
+import os
+import sys
+import requests
+import chromadb
 from pathlib import Path
 from dotenv import load_dotenv
 from sentence_transformers import CrossEncoder
@@ -44,7 +47,7 @@ def bm25():
 def search_documents(query: str, top_n: int = 5) -> str:
     """Search a water-sector document archive (2,209 documents, 14,252 chunks; Armenian, Russian and English). Hybrid dense + BM25 retrieval with reranking. Returns relevant excerpts with source filenames."""
     e = requests.post(URL, json={'model': EMB, 'input': [query]}, timeout=60).json()['data'][0]['embedding']
-    ids, paths, docs, metas, used_bm25 = retrieve(col, query, e, bm25(), 'adaptive')
+    _ids, _paths, docs, metas, used_bm25 = retrieve(col, query, e, bm25(), 'adaptive')
     sc = rr().predict([(query, d) for d in docs])
     top = sorted(range(len(docs)), key=lambda i: -sc[i])[:top_n]
     out = []

@@ -321,6 +321,29 @@ python src/eval.py --collection water2 --evalset evalset_arm.jsonl --out results
 
 ---
 
+## Docker
+
+```bash
+docker build -t water-rag .
+docker compose run --rm rag python src/eval.py --help
+```
+
+The image ships **code and dependencies only**. The corpus, the Chroma store
+and the BM25 index are not in it — they are mounted from a host directory at
+`/data`, and `RAG_DIR` points there. A `.dockerignore` keeps them out of the
+build context, which is around 60 KB.
+
+An OpenAI-compatible embeddings endpoint must be running on the host. The
+container reaches it at `host.docker.internal:1234`, which is what LM Studio
+serves by default.
+
+torch is installed from PyTorch's CPU index rather than the default PyPI build,
+which would add roughly 2.5 GB of CUDA that a container without GPU access
+cannot use — and the reranker runs on CPU here regardless. The image is 2.53 GB
+on disk, 547 MB compressed.
+
+---
+
 ## Limitations
 
 Stated plainly, because the numbers above only mean something with them.

@@ -1,4 +1,7 @@
-import os, sys, requests, chromadb
+import os
+import sys
+import requests
+import chromadb
 from pathlib import Path
 from dotenv import load_dotenv
 from sentence_transformers import CrossEncoder
@@ -39,7 +42,8 @@ sysmsg = 'You are an assistant answering questions about a document archive. RUL
 usr = 'VYPISKI:' + chr(10)+chr(10) + ctx + chr(10) + 'VOPROS: ' + q
 r = requests.post(URL+'/chat/completions', json={'model': LLM, 'messages': [{'role':'system','content':sysmsg},{'role':'user','content':usr}], 'temperature': 0.2, 'max_tokens': 3000, 'chat_template_kwargs': {'enable_thinking': False}}, timeout=600)
 print(chr(10) + '=== OTVET (' + ('dense+BM25' if used_bm25 else 'dense') + ') ===' + chr(10))
-mm = r.json()['choices'][0]['message']; print(mm.get('content') or mm.get('reasoning_content') or '[pusto]')
+mm = r.json()['choices'][0]['message']
+print(mm.get('content') or mm.get('reasoning_content') or '[pusto]')
 print(chr(10) + '=== ISTOCHNIKI ===')
 for n, i in enumerate(top, 1):
     print(str(n) + '. ' + metas[i]['name'] + '  [' + format(float(sc[i]), '.2f') + ']')
